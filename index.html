@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Game Engine</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+        }
+
+        #game-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        #canvas-container {
+            position: relative;
+            flex: 1;
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        #game-canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #000000;
+        }
+
+        #block-editor {
+            width: 300px;
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-left: 1px solid #3d3d3d;
+            overflow-y: auto;
+        }
+
+        .block-category {
+            margin-bottom: 20px;
+        }
+
+        .category-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #00ff00;
+        }
+
+        .block {
+            background-color: #3d3d3d;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .block:hover {
+            background-color: #4d4d4d;
+        }
+
+        .block.motion { background-color: #4C97FF; }
+        .block.looks { background-color: #9966FF; }
+        .block.sound { background-color: #CF63CF; }
+        .block.events { background-color: #FFD500; }
+        .block.control { background-color: #FFAB19; }
+        .block.sensing { background-color: #5CB1D6; }
+        .block.operators { background-color: #59C059; }
+        .block.variables { background-color: #FF8C1A; }
+
+        #toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:active {
+            background-color: #3d8b40;
+        }
+
+        #stop-btn {
+            background-color: #f44336;
+        }
+
+        #stop-btn:hover {
+            background-color: #da190b;
+        }
+
+        .debug-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #00ff00;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="toolbar">
+            <button id="start-btn">▶ Start</button>
+            <button id="stop-btn">⬛ Stop</button>
+            <button id="debug-btn">🐞 Debug</button>
+        </div>
+        <div id="canvas-container">
+            <canvas id="game-canvas" width="800" height="600"></canvas>
+            <div class="debug-overlay"></div>
+        </div>
+    </div>
+    <div id="block-editor">
+        <div class="block-category">
+            <div class="category-title">Motion</div>
+            <div class="block motion" draggable="true" data-type="move">Move 10 steps</div>
+            <div class="block motion" draggable="true" data-type="rotate">Turn 15 degrees</div>
+            <div class="block motion" draggable="true" data-type="goto">Go to x: 0 y: 0</div>
+        </div>
+        <div class="block-category">
+            <div class="category-title">Looks</div>
+            <div class="block looks" draggable="true" data-type="costume">Switch costume</div>
+            <div class="block looks" draggable="true" data-type="say">Say "Hello!"</div>
+            <div class="block looks" draggable="true" data-type="size">Set size to 100%</div>
+        </div>
+        <div class="block-category">
+            <div class="category-title">Sound</div>
+            <div class="block sound" draggable="true" data-type="play">Play sound</div>
+            <div class="block sound" draggable="true" data-type="stop">Stop all sounds</div>
+        </div>
+        <div class="block-category">
+            <div class="category-title">Events</div>
+            <div class="block events" draggable="true" data-type="flag">When flag clicked</div>
+            <div class="block events" draggable="true" data-type="key">When key pressed</div>
+            <div class="block events" draggable="true" data-type="sprite">When sprite clicked</div>
+        </div>
+        <div class="block-category">
+            <div class="category-title">Control</div>
+            <div class="block control" draggable="true" data-type="wait">Wait 1 second</div>
+            <div class="block control" draggable="true" data-type="repeat">Repeat 10 times</div>
+            <div class="block control" draggable="true" data-type="if">If ... then</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import Engine from './core/Engine.js';
+        import BlockManager from './core/BlockManager.js';
+        import SoundSystem from './core/SoundSystem.js';
+
+        // Initialize engine
+        const canvas = document.getElementById('game-canvas');
+        const engine = new Engine(canvas);
+        const blockManager = new BlockManager(engine);
+        const soundSystem = new SoundSystem();
+
+        // UI Elements
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const debugBtn = document.getElementById('debug-btn');
+        const debugOverlay = document.querySelector('.debug-overlay');
+
+        // Event Listeners
+        startBtn.addEventListener('click', () => {
+            engine.start();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            engine.stop();
+        });
+
+        debugBtn.addEventListener('click', () => {
+            debugOverlay.style.display = debugOverlay.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Block drag and drop setup
+        const blocks = document.querySelectorAll('.block');
+        blocks.forEach(block => {
+            block.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', block.dataset.type);
+                block.classList.add('dragging');
+            });
+
+            block.addEventListener('dragend', () => {
+                block.classList.remove('dragging');
+            });
+        });
+
+        canvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const blockType = e.dataTransfer.getData('text/plain');
+            const x = e.offsetX;
+            const y = e.offsetY;
+            
+            blockManager.createBlock(blockType, x, y);
+        });
+
+        // Debug info update
+        function updateDebugInfo() {
+            if (debugOverlay.style.display === 'block') {
+                const info = engine.getDebugInfo();
+                debugOverlay.textContent = `
+                    FPS: ${info.fps}
+                    Sprites: ${info.spriteCount}
+                    Active Blocks: ${info.activeBlocks}
+                    Memory: ${info.memoryUsage}MB
+                `;
+            }
+            requestAnimationFrame(updateDebugInfo);
+        }
+        updateDebugInfo();
+
+        // Handle window resize
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            const scale = Math.min(
+                containerWidth / canvas.width,
+                containerHeight / canvas.height
+            );
+
+            canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Example: Create a test sprite
+        engine.createSprite('test', {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            width: 50,
+            height: 50,
+            color: '#ff0000'
+        });
+    </script>
+</body>
+</html>
